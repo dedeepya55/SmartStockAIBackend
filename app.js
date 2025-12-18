@@ -11,6 +11,7 @@ const cors = require('cors');
 var app = express();
 
 const authRoute = require("./routes/authRoute");
+const productRoutes = require('./routes/productRoutes');
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI, {
@@ -35,6 +36,9 @@ app.use(cors({
 }));
 
 app.use("/api/auth", authRoute);
+
+app.use('/images', express.static('public/images')); 
+app.use('/api/products', productRoutes);
 
 
 // catch 404 and forward to error handler
