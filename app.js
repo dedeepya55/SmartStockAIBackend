@@ -41,6 +41,7 @@ app.use('/images', express.static('public/images'));
 app.use('/api/products', productRoutes);
 
 
+
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
   next(createError(404));

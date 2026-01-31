@@ -240,3 +240,37 @@ exports.updateProductBySKU = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+
+exports.checkProductQuality = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "No image uploaded" });
+    }
+
+    /**
+     * 🔮 AI LOGIC PLACEHOLDER
+     * Later replace this with:
+     * - OpenCV
+     * - TensorFlow
+     * - YOLO model
+     */
+
+    const aiDecision = Math.random() > 0.5;
+
+    if (aiDecision) {
+      return res.json({
+        status: "OK",
+        message: "✅ Product is correct and properly sealed"
+      });
+    } else {
+      return res.json({
+        status: "NOT_OK",
+        message: "❌ Product is not correct. Send to manufacturer"
+      });
+    }
+
+  } catch (error) {
+    res.status(500).json({ message: "AI processing failed" });
+  }
+};
