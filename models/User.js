@@ -1,19 +1,43 @@
 const mongoose = require("mongoose");
 
-const userSchema = new mongoose.Schema({
-  email: {
+const notificationSchema = new mongoose.Schema({
+  message: String,
+  type: {
     type: String,
-    required: true,
-    unique: true
+    enum: ["DEFECT", "INFO"],
+    default: "INFO",
   },
-  password: {
-    type: String,
-    required: true
+  read: {
+    type: Boolean,
+    default: false,
   },
-  role: {
-    type: String,
-    required: true
-  }
-}, { timestamps: true });
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+});
+
+const userSchema = new mongoose.Schema(
+  {
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    password: {
+      type: String,
+      required: true,
+    },
+    role: {
+      type: String,
+      enum: ["admin", "manager", "worker"],
+      required: true,
+    },
+
+    // 🔔 EMBEDDED NOTIFICATIONS
+    notifications: [notificationSchema],
+  },
+  { timestamps: true }
+);
 
 module.exports = mongoose.model("User", userSchema);

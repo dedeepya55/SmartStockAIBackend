@@ -35,6 +35,14 @@ app.use(cors({
   credentials: true
 }));
 
+app.use("/SMARTSTOCKAI-AI", express.static("SMARTSTOCKAI-AI"));
+app.use(
+  "/output_results",
+  express.static(
+    path.join(__dirname, "SMARTSTOCKAI-AI", "output_results")
+  )
+);
+
 app.use("/api/auth", authRoute);
 
 app.use('/images', express.static('public/images')); 

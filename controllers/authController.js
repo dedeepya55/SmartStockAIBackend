@@ -2,7 +2,7 @@ const User = require("../models/User");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 
-// Store OTPs temporarily (use DB/Redis in production)
+// OTP store for demo purposes
 const otpStore = {};
 
 // Nodemailer setup
@@ -14,29 +14,28 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// ================= LOGIN =================
+// Generate JWT token
+const generateToken = (userId, role, rememberMe = false) => {
+  return jwt.sign(
+    { id: userId, role },
+    process.env.JWT_SECRET,
+    { expiresIn: rememberMe ? "7d" : "1d" } // 1 day default, 7 days if "remember me"
+  );
+};
+
+// ---------------- LOGIN ----------------
 exports.loginUser = async (req, res) => {
   try {
     const { email, password, rememberMe } = req.body;
 
-    if (!email || !password) {
-      return res
-        .status(400)
-        .json({ message: "Email and password are required" });
-    }
+    if (!email || !password)
+      return res.status(400).json({ message: "Email and password are required" });
 
     const user = await User.findOne({ email });
-    if (!user || user.password !== password) {
-      return res
-        .status(401)
-        .json({ message: "Invalid email or password" });
-    }
+    if (!user || user.password !== password)
+      return res.status(401).json({ message: "Invalid email or password" });
 
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: rememberMe ? "7d" : "1d" }
-    );
+    const token = generateToken(user._id, user.role, rememberMe);
 
     res.status(200).json({
       message: "Login successful",
@@ -52,16 +51,14 @@ exports.loginUser = async (req, res) => {
   }
 };
 
-// ================= SEND OTP =================
+// ---------------- SEND OTP ----------------
 exports.sendOtp = async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email)
-      return res.status(400).json({ message: "Email is required" });
+    if (!email) return res.status(400).json({ message: "Email is required" });
 
     const user = await User.findOne({ email });
-    if (!user)
-      return res.status(404).json({ message: "User not found" });
+    if (!user) return res.status(404).json({ message: "User not found" });
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore[email] = otp;
@@ -80,14 +77,11 @@ exports.sendOtp = async (req, res) => {
   }
 };
 
-// ================= VERIFY OTP =================
+// ---------------- VERIFY OTP ----------------
 exports.verifyOtp = (req, res) => {
   const { email, otp } = req.body;
-
   if (!email || !otp)
-    return res
-      .status(400)
-      .json({ message: "Email and OTP are required" });
+    return res.status(400).json({ message: "Email and OTP are required" });
 
   if (otpStore[email] === otp) {
     delete otpStore[email];
@@ -97,22 +91,19 @@ exports.verifyOtp = (req, res) => {
   }
 };
 
-// ================= RESET PASSWORD =================
+// ---------------- RESET PASSWORD ----------------
 exports.resetPassword = async (req, res) => {
   try {
     const { email, newPassword, confirmPassword } = req.body;
 
-    if (!email || !newPassword || !confirmPassword) {
+    if (!email || !newPassword || !confirmPassword)
       return res.status(400).json({ message: "All fields are required" });
-    }
 
-    if (newPassword !== confirmPassword) {
+    if (newPassword !== confirmPassword)
       return res.status(400).json({ message: "Passwords do not match" });
-    }
 
     const user = await User.findOne({ email });
-    if (!user)
-      return res.status(404).json({ message: "User not found" });
+    if (!user) return res.status(404).json({ message: "User not found" });
 
     user.password = newPassword;
     await user.save();
@@ -123,3 +114,5 @@ exports.resetPassword = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+module.exports.generateToken = generateToken;

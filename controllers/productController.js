@@ -1,4 +1,5 @@
 const Product = require("../models/Product");
+const User = require("../models/User");
 
 /* 🔹 GET PRODUCTS (FILTER + PAGINATION) */
 exports.getProducts = async (req, res) => {
@@ -240,37 +241,111 @@ exports.updateProductBySKU = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+const path = require("path");
+const { spawn } = require("child_process");
 
-
-exports.checkProductQuality = async (req, res) => {
+exports.productQualityCheck = async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: "No image uploaded" });
     }
 
-    /**
-     * 🔮 AI LOGIC PLACEHOLDER
-     * Later replace this with:
-     * - OpenCV
-     * - TensorFlow
-     * - YOLO model
-     */
+    // Uploaded image path
+    const imagePath = req.file.path;
 
-    const aiDecision = Math.random() > 0.5;
+    // Path to infer.py
+    const pythonScriptPath = path.join(
+      __dirname,
+      "..",
+      "SMARTSTOCKAI-AI",
+      "infer.py"
+    );
 
-    if (aiDecision) {
-      return res.json({
-        status: "OK",
-        message: "✅ Product is correct and properly sealed"
-      });
-    } else {
-      return res.json({
-        status: "NOT_OK",
-        message: "❌ Product is not correct. Send to manufacturer"
-      });
-    }
+    let pythonOutput = "";
+    let pythonError = "";
 
+    const pythonProcess = spawn("python", [
+      pythonScriptPath,
+      imagePath,
+    ]);
+
+    pythonProcess.stdout.on("data", (data) => {
+      pythonOutput += data.toString();
+    });
+
+    pythonProcess.stderr.on("data", (data) => {
+      pythonError += data.toString();
+    });
+
+    pythonProcess.on("close", async (code) => {
+      if (code !== 0) {
+        console.error("Python error:", pythonError);
+        return res.status(500).json({
+          message: "AI processing failed",
+        });
+      }
+
+      try {
+        // ✅ IMPORTANT: extract only the last JSON line
+        const lines = pythonOutput.trim().split("\n");
+        const jsonLine = lines[lines.length - 1];
+
+        const result = JSON.parse(jsonLine);
+
+       if (result.status === "NOT_OK") {
+          await User.updateMany(
+            { role: { $in: ["worker", "manager"] } },
+            {
+              $push: {
+                notifications: {
+                  message: "❌ Defective product detected",
+                  type: "DEFECT",
+                },
+              },
+            }
+          );
+        }
+
+        // Convert absolute path → relative path for frontend
+        const relativeOutputPath = path
+          .relative(process.cwd(), result.output_image_path)
+          .replace(/\\/g, "/");
+
+       return res.json({
+  status: result.status,
+  message: result.message,
+  outputImage: relativeOutputPath,
+});
+
+      } catch (err) {
+        console.error("JSON parse error:", err);
+        console.error("Python raw output:", pythonOutput);
+
+        return res.status(500).json({
+          message: "Invalid AI response",
+        });
+      }
+    });
   } catch (error) {
-    res.status(500).json({ message: "AI processing failed" });
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
   }
+};
+
+exports.getNotifications = async (req, res) => {
+  const userId = req.user.id;
+
+  const user = await User.findById(userId);
+  res.json(user.notifications.reverse());
+};
+exports.deleteNotification = async (req, res) => {
+  const userId = req.user.id;
+  const { notificationId } = req.params;
+
+  await User.updateOne(
+    { _id: userId },
+    { $pull: { notifications: { _id: notificationId } } }
+  );
+
+  res.json({ message: "Notification deleted" });
 };
