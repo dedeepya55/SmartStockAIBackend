@@ -49,5 +49,10 @@ router.delete(
   authMiddleware,
   productController.deleteNotification
 );
-
+// MISPLACED PRODUCTS CHECK
+router.post(
+  "/misplaced-check",
+  upload.single("productImage"), // must match frontend FormData key
+  productController.checkMisplacedProducts // make sure controller function name matches
+);
 module.exports = router;

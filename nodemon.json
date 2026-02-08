@@ -1,0 +1,4 @@
+{
+  "watch": ["controllers", "routes", "models"], 
+  "ignore": ["uploads/**", "public/uploads/**", "results/**", "*.pyc"]
+}

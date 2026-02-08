@@ -1,0 +1,62 @@
+{
+  "status": "CORRECT",
+  "messages": [
+    "Row 1 correct",
+    "Row 2 correct"
+  ],
+  "misplaced_boxes": [],
+  "row_wise_ocr": [
+    [
+      [
+        "PURE",
+        "CANE",
+        "Fresh-",
+        "Fresh-",
+        "Fresh-",
+        "SUGAR",
+        "Fresh-",
+        "Fre",
+        "MILK",
+        "MILK",
+        "MILK",
+        "MILK",
+        "M",
+        "14",
+        "1",
+        "I0"
+      ]
+    ],
+    [
+      [
+        "PURE",
+        "PURE",
+        "PURE",
+        "PURE",
+        "PURE",
+        "CANE",
+        "CANE",
+        "CANE",
+        "CANE",
+        "CANE",
+        "SUGAR",
+        "SUGAR",
+        "SUGAR",
+        "SUGAR",
+        "SUGAR",
+        "Fi",
+        "N",
+        "Eu",
+        "'1a",
+        "[LMa"
+      ]
+    ]
+  ],
+  "row_wise_products": [
+    [
+      "Fresh"
+    ],
+    [
+      "SUGAR"
+    ]
+  ]
+}

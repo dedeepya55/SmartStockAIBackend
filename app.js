@@ -12,6 +12,7 @@ var app = express();
 
 const authRoute = require("./routes/authRoute");
 const productRoutes = require('./routes/productRoutes');
+const aiChatRoute = require("./routes/aiChatRoute");
 
 // MongoDB Connection
 mongoose.connect(process.env.MONGO_URI, {
@@ -35,6 +36,7 @@ app.use(cors({
   credentials: true
 }));
 
+
 app.use("/SMARTSTOCKAI-AI", express.static("SMARTSTOCKAI-AI"));
 app.use(
   "/output_results",
@@ -47,7 +49,9 @@ app.use("/api/auth", authRoute);
 
 app.use('/images', express.static('public/images')); 
 app.use('/api/products', productRoutes);
+app.use("/results", express.static(path.join(__dirname, "SMARTSTOCK_AI2", "results")));
 
+app.use("/api/ai", aiChatRoute);
 
 
 // catch 404 and forward to error handler

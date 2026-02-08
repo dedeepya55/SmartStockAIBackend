@@ -1,6 +1,14 @@
 const Product = require("../models/Product");
 const User = require("../models/User");
 
+const fs = require("fs");
+const path = require("path");
+const { spawn } = require("child_process");
+
+const { exec } = require("child_process");
+
+
+
 /* 🔹 GET PRODUCTS (FILTER + PAGINATION) */
 exports.getProducts = async (req, res) => {
   try {
@@ -241,8 +249,6 @@ exports.updateProductBySKU = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-const path = require("path");
-const { spawn } = require("child_process");
 
 exports.productQualityCheck = async (req, res) => {
   try {
@@ -348,4 +354,146 @@ exports.deleteNotification = async (req, res) => {
   );
 
   res.json({ message: "Notification deleted" });
+};
+
+// exports.checkMisplacedProducts = async (req, res) => {
+//   try {
+//     if (!req.file) return res.status(400).json({ error: "No image uploaded" });
+
+//     const imagePath = req.file.path;
+//     const pythonProcess = spawn("python", [PYTHON_SCRIPT, "--image", imagePath]);
+
+//     let stderr = "";
+
+//     pythonProcess.stderr.on("data", (data) => {
+//       stderr += data.toString();
+//     });
+
+//     pythonProcess.on("close", async (code) => {
+//       if (code !== 0) {
+//         console.error("Python error:", stderr);
+//         return res.status(500).json({ error: "Python script failed" });
+//       }
+
+//       try {
+//         // Read results
+//         const resultsFolder = path.join(__dirname, "..", "SMARTSTOCK_AI2", "results", "misplacement_outputs");
+//         const annotatedImageName = "annotated_" + path.basename(imagePath);
+//         const annotatedImagePath = path.join(resultsFolder, annotatedImageName);
+//         const jsonPath = path.join(resultsFolder, "detection_results.json");
+
+//         if (!fs.existsSync(annotatedImagePath) || !fs.existsSync(jsonPath))
+//           return res.status(500).json({ error: "Result files not found" });
+
+//         const jsonData = JSON.parse(fs.readFileSync(jsonPath, "utf-8"));
+
+//         res.json({
+//           image: `/results/misplacement_outputs/${annotatedImageName}`,
+//           results: jsonData
+//         });
+//       } catch (err) {
+//         console.error("Error reading result files:", err);
+//         return res.status(500).json({ error: "Failed to read result files" });
+//       }
+//     });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ error: "Server error" });
+//   }
+// };
+
+exports.checkMisplacedProducts = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No image uploaded" });
+
+    // 🔹 Absolute path for uploaded image
+    const imagePath = path.resolve(req.file.path); 
+    console.log("Image path (absolute):", imagePath);
+
+    // 🔹 Correct Python script path
+    const pythonScriptPath = path.join(
+      __dirname,
+      "..",
+      "SMARTSTOCK_AI2",
+      "run_full_pipeline.py"
+    );
+    console.log("Python script path:", pythonScriptPath);
+
+    // 🔹 Spawn Python process
+    const pythonProcess = spawn("python", [
+      pythonScriptPath,
+      "--image",
+      imagePath.replace(/\\/g, "/") // forward slashes
+    ]);
+
+    let pythonOutput = "";
+    let pythonError = "";
+
+    pythonProcess.stdout.on("data", (data) => {
+      const text = data.toString();
+      pythonOutput += text;
+      console.log("[PYTHON STDOUT]:", text); // log every stdout
+    });
+
+    pythonProcess.stderr.on("data", (data) => {
+      const text = data.toString();
+      pythonError += text;
+      console.error("[PYTHON STDERR]:", text); // log errors
+    });
+
+    pythonProcess.on("error", (err) => {
+      console.error("Failed to start Python process:", err);
+    });
+
+    pythonProcess.on("close", async (code) => {
+      console.log("Python process exited with code:", code);
+
+      if (code !== 0) {
+        console.error("Python script failed:", pythonError);
+        return res.status(500).json({ error: "Python script failed", details: pythonError });
+      }
+
+      try {
+        // 🔹 Paths to results
+        const resultsFolder = path.join(__dirname, "..", "SMARTSTOCK_AI2", "results");
+        const annotatedImageName = "annotated_" + path.basename(imagePath);
+        const annotatedImagePath = path.join(resultsFolder, annotatedImageName);
+        const jsonPath = path.join(resultsFolder, "detection_results.json");
+
+        console.log("Checking results folder:", resultsFolder);
+        console.log("Expected annotated image path:", annotatedImagePath);
+        console.log("Expected JSON path:", jsonPath);
+
+        // 🔹 Check if result files exist
+        if (!fs.existsSync(annotatedImagePath)) console.error("Annotated image NOT found!");
+        if (!fs.existsSync(jsonPath)) console.error("JSON results NOT found!");
+
+        if (!fs.existsSync(annotatedImagePath) || !fs.existsSync(jsonPath)) {
+          return res.status(500).json({ 
+            error: "Result files not found",
+            pythonOutput,
+            pythonError
+          });
+        }
+
+        // 🔹 Read JSON results
+        const jsonData = JSON.parse(fs.readFileSync(jsonPath, "utf-8"));
+
+        // 🔹 Return annotated image path + results
+        res.json({
+          message: "Image processed successfully",
+          image: `/results/${annotatedImageName}`,
+          results: jsonData,
+        });
+
+      } catch (err) {
+        console.error("Error reading result files:", err);
+        res.status(500).json({ error: "Failed to read result files", details: err.message });
+      }
+    });
+
+  } catch (err) {
+    console.error("Server error:", err);
+    res.status(500).json({ error: "Server error", details: err.message });
+  }
 };
