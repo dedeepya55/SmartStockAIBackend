@@ -1,5 +1,6 @@
 const Product = require("../models/Product");
 const User = require("../models/User");
+const Order = require("../models/Order");
 
 const fs = require("fs");
 const path = require("path");
@@ -128,49 +129,77 @@ exports.getInventoryAnalytics = async (req, res) => {
       }));
 
     // ================= MONTHLY TREND =================
-    const currentYear = new Date().getFullYear(); // or you can choose another year
-    const monthlyTrend = {};
+   // ================= MONTHLY TREND (GROUPED BY YEAR) =================
 
-    // Aggregate IN quantities per month
-    product.inDates.forEach((entry) => {
-      const date = new Date(entry.date);
-      const year = date.getFullYear();
-      if (year !== currentYear) return; // only for selected year
+const monthlyTrendByYear = {};
 
-      const month = date.toLocaleString("default", { month: "short" }); // Jan, Feb
-      if (!monthlyTrend[month]) monthlyTrend[month] = { inQty: 0, outQty: 0 };
-      monthlyTrend[month].inQty += entry.qty;
-    });
+// 🔹 Process IN Dates
+product.inDates.forEach((entry) => {
+  const date = new Date(entry.date);
+  const year = date.getFullYear();
+  const month = date.toLocaleString("default", { month: "short" });
 
-    // Aggregate OUT quantities per month
-    product.outDates.forEach((entry) => {
-      const date = new Date(entry.date);
-      const year = date.getFullYear();
-      if (year !== currentYear) return;
+  if (!monthlyTrendByYear[year]) {
+    monthlyTrendByYear[year] = {};
+  }
 
-      const month = date.toLocaleString("default", { month: "short" });
-      if (!monthlyTrend[month]) monthlyTrend[month] = { inQty: 0, outQty: 0 };
-      monthlyTrend[month].outQty += entry.qty;
-    });
+  if (!monthlyTrendByYear[year][month]) {
+    monthlyTrendByYear[year][month] = { inQty: 0, outQty: 0 };
+  }
 
-    const monthOrder = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    const monthlyData = monthOrder
-      .filter((m) => monthlyTrend[m])
-      .map((month) => ({
-        month,
-        inQty: monthlyTrend[month].inQty,
-        outQty: monthlyTrend[month].outQty
-      }));
+  monthlyTrendByYear[year][month].inQty += entry.qty;
+});
+
+// 🔹 Process OUT Dates
+product.outDates.forEach((entry) => {
+  const date = new Date(entry.date);
+  const year = date.getFullYear();
+  const month = date.toLocaleString("default", { month: "short" });
+
+  if (!monthlyTrendByYear[year]) {
+    monthlyTrendByYear[year] = {};
+  }
+
+  if (!monthlyTrendByYear[year][month]) {
+    monthlyTrendByYear[year][month] = { inQty: 0, outQty: 0 };
+  }
+
+  monthlyTrendByYear[year][month].outQty += entry.qty;
+});
+
+// 🔹 Sort Years
+const sortedYears = Object.keys(monthlyTrendByYear)
+  .map(Number)
+  .sort((a, b) => a - b);
+
+// 🔹 Month Order
+const monthOrder = [
+  "Jan","Feb","Mar","Apr","May","Jun",
+  "Jul","Aug","Sep","Oct","Nov","Dec"
+];
+
+// 🔹 Final Structured Data
+const monthlyData = sortedYears.map((year) => ({
+  year,
+  months: monthOrder
+    .filter((m) => monthlyTrendByYear[year][m])
+    .map((month) => ({
+      month,
+      inQty: monthlyTrendByYear[year][month].inQty,
+      outQty: monthlyTrendByYear[year][month].outQty
+    }))
+}));
+
 
     // ================= RETURN =================
-    res.json({
-      sku: product.SKU,
-      qty: product.QTY,
-      soldQty,
-      price: product.Price,
-      yearlyTrend: yearlyData,
-      monthlyTrend: monthlyData,
-    });
+   res.json({
+  sku: product.SKU,
+  qty: product.QTY,
+  soldQty,
+  price: product.Price,
+  yearlyTrend: yearlyData,
+  monthlyTrend: monthlyData, // grouped by year
+});
     
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -356,52 +385,6 @@ exports.deleteNotification = async (req, res) => {
   res.json({ message: "Notification deleted" });
 };
 
-// exports.checkMisplacedProducts = async (req, res) => {
-//   try {
-//     if (!req.file) return res.status(400).json({ error: "No image uploaded" });
-
-//     const imagePath = req.file.path;
-//     const pythonProcess = spawn("python", [PYTHON_SCRIPT, "--image", imagePath]);
-
-//     let stderr = "";
-
-//     pythonProcess.stderr.on("data", (data) => {
-//       stderr += data.toString();
-//     });
-
-//     pythonProcess.on("close", async (code) => {
-//       if (code !== 0) {
-//         console.error("Python error:", stderr);
-//         return res.status(500).json({ error: "Python script failed" });
-//       }
-
-//       try {
-//         // Read results
-//         const resultsFolder = path.join(__dirname, "..", "SMARTSTOCK_AI2", "results", "misplacement_outputs");
-//         const annotatedImageName = "annotated_" + path.basename(imagePath);
-//         const annotatedImagePath = path.join(resultsFolder, annotatedImageName);
-//         const jsonPath = path.join(resultsFolder, "detection_results.json");
-
-//         if (!fs.existsSync(annotatedImagePath) || !fs.existsSync(jsonPath))
-//           return res.status(500).json({ error: "Result files not found" });
-
-//         const jsonData = JSON.parse(fs.readFileSync(jsonPath, "utf-8"));
-
-//         res.json({
-//           image: `/results/misplacement_outputs/${annotatedImageName}`,
-//           results: jsonData
-//         });
-//       } catch (err) {
-//         console.error("Error reading result files:", err);
-//         return res.status(500).json({ error: "Failed to read result files" });
-//       }
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ error: "Server error" });
-//   }
-// };
-
 exports.checkMisplacedProducts = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No image uploaded" });
@@ -495,5 +478,98 @@ exports.checkMisplacedProducts = async (req, res) => {
   } catch (err) {
     console.error("Server error:", err);
     res.status(500).json({ error: "Server error", details: err.message });
+  }
+};
+
+
+// GET all orders
+exports.getOrders = async (req, res) => {
+  try {
+    const orders = await Order.find()
+      .populate("items.product") // fetch product details
+      .sort({ orderDate: -1 });
+
+    res.json(orders);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+// CREATE new order
+exports.createOrder = async (req, res) => {
+  try {
+    const { orderId, shopName, items } = req.body;
+
+    if (!items || items.length === 0)
+      return res.status(400).json({ message: "No items in order" });
+
+    // Calculate total price
+    let totalPrice = 0;
+    for (let i = 0; i < items.length; i++) {
+      const product = await Product.findById(items[i].product);
+      if (!product)
+        return res.status(404).json({ message: `Product not found: ${items[i].product}` });
+      totalPrice += product.Price * items[i].quantity;
+    }
+
+    const newOrder = new Order({
+      orderId,
+      shopName,
+      items,
+      totalPrice,
+      status: "Pending",
+      shippingHistory: [
+        { status: "Ordered", timestamp: new Date() } // initial shipping entry
+      ],
+    });
+
+    await newOrder.save();
+    res.status(201).json(newOrder);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+exports.getShippingInfo = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const order = await Order.findOne({ orderId }).populate("items.product");
+
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    res.json({
+      orderId: order.orderId,
+      shopName: order.shopName,
+      totalPrice: order.totalPrice,
+      status: order.status,
+      items: order.items,
+      shippingHistory: order.shippingHistory || [],
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+exports.updateShippingStatus = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+    const { status } = req.body;
+
+    if (!status) {
+      return res.status(400).json({ message: "Shipping status is required" });
+    }
+
+    const order = await Order.findOne({ orderId });
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    order.status = status;
+    order.shippingHistory.push({ status, timestamp: new Date() });
+    await order.save();
+
+    res.json(order);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
   }
 };

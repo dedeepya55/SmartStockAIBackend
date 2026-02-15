@@ -4,6 +4,8 @@ const router = express.Router();
 const productController = require("../controllers/productController");
 const authMiddleware = require("../middleware/authMiddleware");
 
+// const orderController = require("../controllers/orderController"); 
+
 const multer = require("multer");
 const path = require("path");
 
@@ -55,4 +57,19 @@ router.post(
   upload.single("productImage"), // must match frontend FormData key
   productController.checkMisplacedProducts // make sure controller function name matches
 );
+
+
+// GET all orders
+router.get("/orders", productController.getOrders);
+
+// CREATE new order
+router.post("/orders", productController.createOrder);
+
+
+// GET shipping info
+router.get("/orders/:orderId/shipping", productController.getShippingInfo);
+
+// UPDATE shipping status
+router.put("/orders/:orderId/shipping", productController.updateShippingStatus);
+
 module.exports = router;

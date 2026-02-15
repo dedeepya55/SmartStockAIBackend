@@ -53,18 +53,27 @@ app.use("/results", express.static(path.join(__dirname, "SMARTSTOCK_AI2", "resul
 
 app.use("/api/ai", aiChatRoute);
 
-
-// catch 404 and forward to error handler
+// catch 404
 app.use(function(req, res, next) {
+  if (req.originalUrl.startsWith("/api/")) {
+    return res.status(404).json({ message: "API endpoint not found" });
+  }
   next(createError(404));
 });
 
 // error handler
 app.use(function(err, req, res, next) {
-  res.locals.message = err.message;
-  res.locals.error = req.app.get('env') === 'development' ? err : {};
-  res.status(err.status || 500);
-  res.render('error');
+  if (req.originalUrl.startsWith("/api/")) {
+    // Send JSON for API errors
+    res.status(err.status || 500).json({ message: err.message });
+  } else {
+    // Render Pug page for frontend errors
+    res.locals.message = err.message;
+    res.locals.error = req.app.get('env') === 'development' ? err : {};
+    res.status(err.status || 500);
+    res.render('error');
+  }
 });
+
 
 module.exports = app;
