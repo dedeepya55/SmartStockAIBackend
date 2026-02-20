@@ -459,15 +459,48 @@ exports.checkMisplacedProducts = async (req, res) => {
           });
         }
 
-        // 🔹 Read JSON results
-        const jsonData = JSON.parse(fs.readFileSync(jsonPath, "utf-8"));
+       const jsonData = JSON.parse(fs.readFileSync(jsonPath, "utf-8"));
 
-        // 🔹 Return annotated image path + results
-        res.json({
-          message: "Image processed successfully",
-          image: `/results/${annotatedImageName}`,
-          results: jsonData,
-        });
+
+// 🔔 Notification logic
+console.log("JSON Value:",jsonData);
+console.log("Hiii");
+console.log("Hiii");
+console.log("Hiii");
+console.log("Hiii");
+console.log("Hiii");
+console.log("Hiii");
+console.log("Hiii");
+console.log("Hiii");
+console.log("Hiii");
+console.log("Hiii");
+console.log("Hiii");
+
+console.log("STATUS VALUE:", jsonData.status);
+
+if (jsonData.status === "INCORRECT") {
+  console.log("🚨 Misplaced detected → Sending notification");
+
+  const updateResult = await User.updateMany(
+    {}, // 🔥 remove role filter temporarily
+    {
+      $push: {
+        notifications: {
+          message: "⚠️ Misplaced product detected in warehouse",
+          type: "MISPLACED",
+          createdAt: new Date()
+        }
+      }
+    }
+  );
+
+  console.log("Notification update result:", updateResult);
+}
+res.json({
+  message: "Image processed successfully",
+  image: `/results/${annotatedImageName}`,
+  results: jsonData,
+});
 
       } catch (err) {
         console.error("Error reading result files:", err);
