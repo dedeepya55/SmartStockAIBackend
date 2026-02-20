@@ -4,7 +4,7 @@ const notificationSchema = new mongoose.Schema({
   message: String,
   type: {
     type: String,
-    enum: ["DEFECT", "INFO"],
+    enum: ["DEFECT", "INFO","MISPLACED"],
     default: "INFO",
   },
   read: {
@@ -32,6 +32,11 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ["admin", "manager", "worker"],
       required: true,
+    },
+
+     profileImage: {
+      type: String, // store image path
+      default: "",
     },
 
     // 🔔 EMBEDDED NOTIFICATIONS

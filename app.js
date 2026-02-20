@@ -45,11 +45,15 @@ app.use(
   )
 );
 
+
+
 app.use("/api/auth", authRoute);
 
 app.use('/images', express.static('public/images')); 
 app.use('/api/products', productRoutes);
 app.use("/results", express.static(path.join(__dirname, "SMARTSTOCK_AI2", "results")));
+
+app.use("/uploads", express.static("public/uploads")); 
 
 app.use("/api/ai", aiChatRoute);
 
