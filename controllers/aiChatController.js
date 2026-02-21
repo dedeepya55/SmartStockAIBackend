@@ -1,6 +1,11 @@
 const Product = require("../models/Product");
 const User = require("../models/User");
 
+const axios = require("axios");
+const FormData = require("form-data");
+const fs = require("fs");
+const path = require("path");
+
 exports.chatWithAI = async (req, res) => {
   try {
     const { question } = req.body;

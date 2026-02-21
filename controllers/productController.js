@@ -9,6 +9,11 @@ const { spawn } = require("child_process");
 const { exec } = require("child_process");
 
 
+const axios = require("axios");
+const FormData = require("form-data");
+
+
+
 
 /* 🔹 GET PRODUCTS (FILTER + PAGINATION) */
 exports.getProducts = async (req, res) => {
@@ -281,89 +286,43 @@ exports.updateProductBySKU = async (req, res) => {
 
 exports.productQualityCheck = async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ message: "No image uploaded" });
-    }
+    if (!req.file) return res.status(400).json({ message: "No image uploaded" });
 
-    // Uploaded image path
     const imagePath = req.file.path;
+    const formData = new FormData();
+    formData.append("file", fs.createReadStream(imagePath));
 
-    // Path to infer.py
-    const pythonScriptPath = path.join(
-      __dirname,
-      "..",
-      "SMARTSTOCKAI-AI",
-      "infer.py"
+    const response = await axios.post(
+      "https://smartstock-ai-service-t540.onrender.com/defect",
+      formData,
+      { headers: formData.getHeaders() }
     );
 
-    let pythonOutput = "";
-    let pythonError = "";
+    const result = JSON.parse(response.data.response); // your API wraps JSON in "response" string
 
-    const pythonProcess = spawn("python", [
-      pythonScriptPath,
-      imagePath,
-    ]);
-
-    pythonProcess.stdout.on("data", (data) => {
-      pythonOutput += data.toString();
-    });
-
-    pythonProcess.stderr.on("data", (data) => {
-      pythonError += data.toString();
-    });
-
-    pythonProcess.on("close", async (code) => {
-      if (code !== 0) {
-        console.error("Python error:", pythonError);
-        return res.status(500).json({
-          message: "AI processing failed",
-        });
-      }
-
-      try {
-        // ✅ IMPORTANT: extract only the last JSON line
-        const lines = pythonOutput.trim().split("\n");
-        const jsonLine = lines[lines.length - 1];
-
-        const result = JSON.parse(jsonLine);
-
-       if (result.status === "NOT_OK") {
-          await User.updateMany(
-            { role: { $in: ["worker", "manager"] } },
-            {
-              $push: {
-                notifications: {
-                  message: "❌ Defective product detected",
-                  type: "DEFECT",
-                },
-              },
-            }
-          );
+    // Send notifications if defective
+    if (result.status === "NOT_OK") {
+      await User.updateMany(
+        { role: { $in: ["worker", "manager"] } },
+        {
+          $push: {
+            notifications: {
+              message: "❌ Defective product detected",
+              type: "DEFECT",
+            },
+          },
         }
+      );
+    }
 
-        // Convert absolute path → relative path for frontend
-        const relativeOutputPath = path
-          .relative(process.cwd(), result.output_image_path)
-          .replace(/\\/g, "/");
-
-       return res.json({
-  status: result.status,
-  message: result.message,
-  outputImage: relativeOutputPath,
-});
-
-      } catch (err) {
-        console.error("JSON parse error:", err);
-        console.error("Python raw output:", pythonOutput);
-
-        return res.status(500).json({
-          message: "Invalid AI response",
-        });
-      }
+    res.json({
+      status: result.status,
+      message: result.message,
+      outputImage: result.output_image_path, // already returned by FastAPI
     });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error" });
+  } catch (err) {
+    console.error("AI API error:", err.response?.data || err.message);
+    res.status(500).json({ message: "AI API call failed", error: err.message });
   }
 };
 
@@ -384,97 +343,47 @@ exports.deleteNotification = async (req, res) => {
 
   res.json({ message: "Notification deleted" });
 };
-
 exports.checkMisplacedProducts = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No image uploaded" });
 
-    // 🔹 Absolute path for uploaded image
-    const imagePath = path.resolve(req.file.path); 
-    console.log("Image path (absolute):", imagePath);
+    const imagePath = req.file.path;
+    const formData = new FormData();
+    formData.append("file", fs.createReadStream(imagePath));
 
-    // 🔹 Correct Python script path
-    const pythonScriptPath = path.join(
-      __dirname,
-      "..",
-      "SMARTSTOCK_AI2",
-      "run_full_pipeline.py"
+    const response = await axios.post(
+      "https://smartstock-ai-service-t540.onrender.com/arrangement",
+      formData,
+      { headers: formData.getHeaders() }
     );
-    console.log("Python script path:", pythonScriptPath);
 
-    // 🔹 Spawn Python process
-    const pythonProcess = spawn("python", [
-      pythonScriptPath,
-      "--image",
-      imagePath.replace(/\\/g, "/") // forward slashes
-    ]);
+    const result = response.data; // FastAPI should return JSON
 
-    let pythonOutput = "";
-    let pythonError = "";
-
-    pythonProcess.stdout.on("data", (data) => {
-      const text = data.toString();
-      pythonOutput += text;
-      console.log("[PYTHON STDOUT]:", text); // log every stdout
-    });
-
-    pythonProcess.stderr.on("data", (data) => {
-      const text = data.toString();
-      pythonError += text;
-      console.error("[PYTHON STDERR]:", text); // log errors
-    });
-
-    pythonProcess.on("error", (err) => {
-      console.error("Failed to start Python process:", err);
-    });
-
-    pythonProcess.on("close", async (code) => {
-      console.log("Python process exited with code:", code);
-
-      if (code !== 0) {
-        console.error("Python script failed:", pythonError);
-        return res.status(500).json({ error: "Python script failed", details: pythonError });
-      }
-
-      try {
-        // 🔹 Paths to results
-        const resultsFolder = path.join(__dirname, "..", "SMARTSTOCK_AI2", "results");
-        const annotatedImageName = "annotated_" + path.basename(imagePath);
-        const annotatedImagePath = path.join(resultsFolder, annotatedImageName);
-        const jsonPath = path.join(resultsFolder, "detection_results.json");
-
-        console.log("Checking results folder:", resultsFolder);
-        console.log("Expected annotated image path:", annotatedImagePath);
-        console.log("Expected JSON path:", jsonPath);
-
-        // 🔹 Check if result files exist
-        if (!fs.existsSync(annotatedImagePath)) console.error("Annotated image NOT found!");
-        if (!fs.existsSync(jsonPath)) console.error("JSON results NOT found!");
-
-        if (!fs.existsSync(annotatedImagePath) || !fs.existsSync(jsonPath)) {
-          return res.status(500).json({ 
-            error: "Result files not found",
-            pythonOutput,
-            pythonError
-          });
+    if (result.status === "INCORRECT") {
+      await User.updateMany(
+        {}, // send to all users
+        {
+          $push: {
+            notifications: {
+              message: "⚠️ Misplaced product detected in warehouse",
+              type: "MISPLACED",
+              createdAt: new Date(),
+            },
+          },
         }
+      );
+    }
 
-       const jsonData = JSON.parse(fs.readFileSync(jsonPath, "utf-8"));
-
-
+    res.json({
+      message: "Image processed successfully",
+      results: result,
+    });
+  } catch (err) {
+    console.error("AI API error:", err.response?.data || err.message);
+    res.status(500).json({ error: "AI API call failed", details: err.message });
+  }
+};
 // 🔔 Notification logic
-console.log("JSON Value:",jsonData);
-console.log("Hiii");
-console.log("Hiii");
-console.log("Hiii");
-console.log("Hiii");
-console.log("Hiii");
-console.log("Hiii");
-console.log("Hiii");
-console.log("Hiii");
-console.log("Hiii");
-console.log("Hiii");
-console.log("Hiii");
 
 console.log("STATUS VALUE:", jsonData.status);
 

@@ -32,7 +32,7 @@ app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(cors({
-  origin: "http://localhost:5173", 
+  origin: process.env.FRONTEND_URL || "*",
   credentials: true
 }));
 
@@ -44,8 +44,6 @@ app.use(
     path.join(__dirname, "SMARTSTOCKAI-AI", "output_results")
   )
 );
-
-
 
 app.use("/api/auth", authRoute);
 
