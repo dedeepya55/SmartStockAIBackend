@@ -347,19 +347,39 @@ exports.checkMisplacedProducts = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No image uploaded" });
 
-    const imagePath = req.file.path;
+    const imagePath = req.file.path; // uploaded image path
+    const resultsFolder = path.join(__dirname, "..", "SMARTSTOCK_AI2", "results");
+
+    // Ensure results folder exists
+    if (!fs.existsSync(resultsFolder)) fs.mkdirSync(resultsFolder, { recursive: true });
+
+    // Prepare form-data
     const formData = new FormData();
     formData.append("file", fs.createReadStream(imagePath));
 
+    // Send image to your Render AI endpoint
     const response = await axios.post(
       "https://smartstock-ai-service-t540.onrender.com/arrangement",
       formData,
       { headers: formData.getHeaders() }
     );
 
-    const result = response.data; // FastAPI should return JSON
+    const jsonData = response.data; // your API returns JSON with status & output_image_path
 
-    if (result.status === "INCORRECT") {
+    // Save annotated image locally (like Python script)
+    const annotatedImageName = "annotated_" + path.basename(imagePath);
+    const annotatedImagePath = path.join(resultsFolder, annotatedImageName);
+
+    // Download output image from API if provided
+    if (jsonData.output_image_path) {
+      const imageResponse = await axios.get(jsonData.output_image_path, {
+        responseType: "arraybuffer",
+      });
+      fs.writeFileSync(annotatedImagePath, imageResponse.data);
+    }
+
+    // 🔔 Notification logic
+    if (jsonData.status === "INCORRECT") {
       await User.updateMany(
         {}, // send to all users
         {
@@ -374,55 +394,17 @@ exports.checkMisplacedProducts = async (req, res) => {
       );
     }
 
+    // Send same structure to frontend
     res.json({
       message: "Image processed successfully",
-      results: result,
+      image: `/results/${annotatedImageName}`, // same as Python version
+      results: jsonData,
     });
   } catch (err) {
-    console.error("AI API error:", err.response?.data || err.message);
+    console.error("Error in misplaced check:", err.response?.data || err.message);
     res.status(500).json({ error: "AI API call failed", details: err.message });
   }
 };
-// 🔔 Notification logic
-
-console.log("STATUS VALUE:", jsonData.status);
-
-if (jsonData.status === "INCORRECT") {
-  console.log("🚨 Misplaced detected → Sending notification");
-
-  const updateResult = await User.updateMany(
-    {}, // 🔥 remove role filter temporarily
-    {
-      $push: {
-        notifications: {
-          message: "⚠️ Misplaced product detected in warehouse",
-          type: "MISPLACED",
-          createdAt: new Date()
-        }
-      }
-    }
-  );
-
-  console.log("Notification update result:", updateResult);
-}
-res.json({
-  message: "Image processed successfully",
-  image: `/results/${annotatedImageName}`,
-  results: jsonData,
-});
-
-      } catch (err) {
-        console.error("Error reading result files:", err);
-        res.status(500).json({ error: "Failed to read result files", details: err.message });
-      }
-    });
-
-  } catch (err) {
-    console.error("Server error:", err);
-    res.status(500).json({ error: "Server error", details: err.message });
-  }
-};
-
 
 // GET all orders
 exports.getOrders = async (req, res) => {
