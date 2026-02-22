@@ -293,12 +293,14 @@ exports.productQualityCheck = async (req, res) => {
     formData.append("file", fs.createReadStream(imagePath));
 
     const response = await axios.post(
-      "https://smartstock-ai-service-t540.onrender.com/defect",
+      `${process.env.AI_SERVICE_URL_productDefect}/defect`,
       formData,
       { headers: formData.getHeaders() }
     );
 
     const result = JSON.parse(response.data.response); // your API wraps JSON in "response" string
+
+    console.log("AI API result:", result); // log full result for debugging
 
     // Send notifications if defective
     if (result.status === "NOT_OK") {
@@ -315,11 +317,13 @@ exports.productQualityCheck = async (req, res) => {
       );
     }
 
-    res.json({
-      status: result.status,
-      message: result.message,
-      outputImage: result.output_image_path, // already returned by FastAPI
-    });
+   res.json({
+  status: result.status,
+  message: result.message,
+  outputImage:
+    process.env.AI_SERVICE_URL_productDefect+
+    result.output_image_path,
+});
   } catch (err) {
     console.error("AI API error:", err.response?.data || err.message);
     res.status(500).json({ message: "AI API call failed", error: err.message });
@@ -359,7 +363,7 @@ exports.checkMisplacedProducts = async (req, res) => {
 
     // Send image to your Render AI endpoint
     const response = await axios.post(
-      "https://smartstock-ai-service-t540.onrender.com/arrangement",
+      `${process.env.AI_SERVICE_URL_arrangementCheck}/arrangement`,
       formData,
       { headers: formData.getHeaders() }
     );
