@@ -1,5 +1,6 @@
 const express = require("express");
 const { loginUser, sendOtp, verifyOtp, resetPassword } = require("../controllers/authController");
+const { changePassword } = require("../controllers/authController");
 
 const authMiddleware = require("../middleware/authMiddleware");
 const profileUpload = require("../middleware/profileUpload");
@@ -21,5 +22,7 @@ router.put(
   profileUpload.single("profileImage"),
   updateProfile
 );
+
+router.put("/change-password", authMiddleware, changePassword);
 
 module.exports = router;

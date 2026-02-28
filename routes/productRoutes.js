@@ -58,6 +58,12 @@ router.post(
   productController.checkMisplacedProducts // make sure controller function name matches
 );
 
+// DASHBOARD ANALYTICS
+router.get("/orders/summary", productController.getOrderSummary);
+router.get("/revenue/weekly", productController.getWeeklyRevenue);
+router.get("/revenue/monthly", productController.getMonthlyRevenue);
+router.get("/revenue/yearly", productController.getYearlyRevenue);
+router.get("/products/top-selling", productController.getTopSellingProducts);
 
 // GET all orders
 router.get("/orders", productController.getOrders);
@@ -71,5 +77,6 @@ router.get("/orders/:orderId/shipping", productController.getShippingInfo);
 
 // UPDATE shipping status
 router.put("/orders/:orderId/shipping", productController.updateShippingStatus);
+
 
 module.exports = router;

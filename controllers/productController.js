@@ -501,3 +501,175 @@ exports.updateShippingStatus = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+// ================= ORDER SUMMARY =================
+exports.getOrderSummary = async (req, res) => {
+  try {
+    const totalOrders = await Order.countDocuments();
+
+    const pendingOrders = await Order.countDocuments({ status: "Pending" });
+    const shippedOrders = await Order.countDocuments({ status: "Shipped" });
+    const deliveredOrders = await Order.countDocuments({ status: "Delivered" });
+
+    res.json({
+      totalOrders,
+      pendingOrders,
+      shippedOrders,
+      deliveredOrders,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ================= REVENUE LAST 7 DAYS =================
+// ================= REVENUE LAST 7 DAYS =================
+exports.getWeeklyRevenue = async (req, res) => {
+  try {
+    const today = new Date();
+
+    // Create UTC end date (today 23:59:59)
+    const endDate = new Date(Date.UTC(
+        today.getUTCFullYear(),
+        today.getUTCMonth(),
+        today.getUTCDate(),
+        23, 59, 59, 999
+    ));
+
+    // Start date = 6 days before today (7 days total)
+    const startDate = new Date(endDate);
+    startDate.setUTCDate(endDate.getUTCDate() - 6);
+    startDate.setUTCHours(0, 0, 0, 0);
+
+    console.log("==================================");
+    console.log("FROM:", startDate);
+    console.log("TO  :", endDate);
+    console.log("==================================");
+
+    const revenueData = await Order.aggregate([
+      {
+        $match: {
+          status: "Delivered",
+          orderDate: {
+            $gte: startDate,
+            $lte: endDate
+          }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            day: { $dayOfWeek: "$orderDate" }
+          },
+          totalRevenue: { $sum: "$totalPrice" }
+        }
+      },
+      { $sort: { "_id.day": 1 } }
+    ]);
+
+    // 🔥 PRINT RESULT
+    console.log("AGGREGATION RESULT:");
+    console.log(JSON.stringify(revenueData, null, 2));
+    console.log("==================================");
+
+    res.json(revenueData);
+
+  } catch (err) {
+    console.error("Error in Weekly Revenue:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ================= MONTHLY REVENUE =================
+exports.getMonthlyRevenue = async (req, res) => {
+  try {
+    const year = new Date().getFullYear();
+
+    const revenue = await Order.aggregate([
+      {
+        $match: {
+          orderDate: {
+            $gte: new Date(`${year}-01-01`),
+            $lte: new Date(`${year}-12-31`),
+          },
+          status: "Delivered",
+        },
+      },
+      {
+        $group: {
+          _id: { month: { $month: "$orderDate" } },
+          totalRevenue: { $sum: "$totalPrice" },
+        },
+      },
+      { $sort: { "_id.month": 1 } },
+    ]);
+
+    res.json(revenue);
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ================= YEARLY REVENUE =================
+exports.getYearlyRevenue = async (req, res) => {
+  try {
+    const revenue = await Order.aggregate([
+      {
+        $match: { status: "Delivered" },
+      },
+      {
+        $group: {
+          _id: { year: { $year: "$orderDate" } },
+          totalRevenue: { $sum: "$totalPrice" },
+        },
+      },
+      { $sort: { "_id.year": 1 } },
+    ]);
+
+    res.json(revenue);
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// ================= TOP SELLING PRODUCTS =================
+exports.getTopSellingProducts = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 5;
+
+    const topProducts = await Order.aggregate([
+      { $match: { status: "Delivered" } },
+      { $unwind: "$items" },
+      {
+        $group: {
+          _id: "$items.product",
+          totalSold: { $sum: "$items.quantity" },
+        },
+      },
+      { $sort: { totalSold: -1 } },
+      { $limit: limit },
+      {
+        $lookup: {
+          from: "products",
+          localField: "_id",
+          foreignField: "_id",
+          as: "productDetails",
+        },
+      },
+      { $unwind: "$productDetails" },
+      {
+        $project: {
+          _id: 0,
+          productName: "$productDetails.Title",
+          totalSold: 1,
+        },
+      },
+    ]);
+
+    res.json(topProducts);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};

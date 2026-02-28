@@ -116,3 +116,32 @@ exports.resetPassword = async (req, res) => {
 };
 
 module.exports.generateToken = generateToken;
+
+
+// ================= CHANGE PASSWORD =================
+exports.changePassword = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+
+    if (!currentPassword || !newPassword || !confirmPassword)
+      return res.status(400).json({ message: "All fields required" });
+
+    if (newPassword !== confirmPassword)
+      return res.status(400).json({ message: "Passwords do not match" });
+
+    const user = await User.findById(userId);
+    if (!user)
+      return res.status(404).json({ message: "User not found" });
+
+    if (user.password !== currentPassword)
+      return res.status(400).json({ message: "Current password incorrect" });
+
+    user.password = newPassword;
+    await user.save();
+
+    res.json({ message: "Password changed successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
